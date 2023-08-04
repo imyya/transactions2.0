@@ -20,10 +20,19 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::post('/transactions/store',[TransactionController::class,'store']);
+Route::post('/transactions/storee',[TransactionController::class,'store']);
 Route::get('/clients',[ClientController::class,'index']);
+Route::get('/clients/comptes',[ClientController::class,'clientsAccounts']);
+Route::get('/clients/noaccs',[ClientController::class,'clientsNoAccount']);
 Route::get('/clients/{id}',[ClientController::class,'find']);
 Route::get('/transactions',[TransactionController::class,'index']);
+Route::get('/transactions/comptes/{id}',[TransactionController::class,'transactionsByAccount']);
+Route::post('/transactions/depot',[TransactionController::class,'depot']);
+Route::post('/transactions/transfert',[TransactionController::class,'transfert']);
+
+
+
+
 
 
 

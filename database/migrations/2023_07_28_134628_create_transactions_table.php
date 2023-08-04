@@ -14,9 +14,18 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('type');
-            $table->string("montant",255);
+            $table->string("amount",255);
             $table->date('date');
-            $table->foreignId('compte_id')->constrained('comptes');
+            $table->foreignId('sender_account_id')->nullable()->constrained('comptes');
+            $table->foreignId('recipient_account_id')->nullable()->constrained('comptes');
+            $table->foreignId('sender_id')->nullable()->constrained('clients');            
+            $table->foreignId('recipient_id')->nullable()->constrained('clients');
+            $table->string("code",45)->nullable();
+            $table->boolean("immediate")->default(false);
+
+
+
+
             
         });
     }

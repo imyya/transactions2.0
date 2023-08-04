@@ -14,8 +14,9 @@ return new class extends Migration
         Schema::create('comptes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained('clients');
-            $table->string("solde",255);
-            $table->string("fournisseur",25);
+            $table->string("balance",255);
+            $table->enum("provider",["OM","WV","CB"]);
+            $table->string("acc_number");
 
             
         });

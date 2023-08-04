@@ -8,18 +8,12 @@ use App\Models\Transaction;
 use Carbon\Exceptions\EndLessPeriodException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use LengthException;
 
 class TransactionController extends Controller
 {
-    public function store(Request $request){
-        $request->validate([
-            'type' => 'required|integer',
-            'fournisseur' => 'required|string',
-            'compte_id' => 'sometimes|required|integer',
-            'recipient' => 'sometimes|required|string',
-            'montant' => 'required|numeric',
-            'code' => 'sometimes|required|string',
-        ]);
+    public function store1(Request $request){
+       
         
         
         switch($request->type){
@@ -90,5 +84,66 @@ class TransactionController extends Controller
     $transacs = Transaction::all();
     return response()->json($transacs);
    }
+
+
+   public function transactionsByAccount($id){
+    $transacs = Transaction::where('account_id',$id)->get();
+    return response()->json($transacs);
+   }
+
+   public function storee(Request $request){
+    $transaction=Transaction::create(['type'=>$request->type,"date"=>Carbon::now()->format('Y-m-d'),
+        'montant'=>$request->montant,'compte_id'=>$request->compte_id]);
+        return response()->json($transaction);
+   }
+
+//    public function store($request){
+//     switch($request->type){
+//         case 0:
+//             if($request->provider && !($request->recipient_id){//donc pas wari
+                
+//             }
+//     }
+
+public function depot(Request $request){
+    
+
+
+    if($request->sender_account_id==0 && $request->recipient_account_id==0 && $request->sender_id==0 && $request->recipient_id==0 && $request->code!=''){//wari
+        $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
+        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>$request->code,'immediate'=>$request->immediate]);
+        return response()->json($transaction);
+    }
+
+    elseif($request->sender_account_id==0 && $request->sender_id !=0){
+        $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
+        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);
+        return response()->json($transaction);
+    }
+
+    $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
+    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);
+    return response()->json($transaction);
+}
+
+public function transfert(Request $request){
+    if($request->recipient_id!=0 && $request->code!=''){
+        $transaction=Transaction::create(['type'=>1,"date"=>Carbon::now()->format('Y-m-d'),
+        'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>null,'sender_id'=>$request->null,'recipient_id'=>$request->recipient_id,'code'=>$request->code,'immediate'=>$request->immediate]);//transfert OM avc code
+        return response()->json($transaction);
+
+    }
+    else{
+        $transaction=Transaction::create(['type'=>1,"date"=>Carbon::now()->format('Y-m-d'),
+        'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);//transfert OM avc code
+        return response()->json($transaction);
+    }
+}
+
+public function retrait(Request $request){
+    $transaction=Transaction::create(['type'=>2,"date"=>Carbon::now()->format('Y-m-d'),
+    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>$request->recipient_id,'code'=>$request->code,'immediate'=>$request->immediate]);
+    return response()->json($transaction);
+}
 
 }
