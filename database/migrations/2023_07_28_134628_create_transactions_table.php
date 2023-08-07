@@ -22,6 +22,7 @@ return new class extends Migration
             $table->foreignId('recipient_id')->nullable()->constrained('clients');
             $table->string("code",45)->nullable();
             $table->boolean("immediate")->default(false);
+            $table->boolean("cancelled")->default(false);
 
 
 

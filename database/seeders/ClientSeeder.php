@@ -14,15 +14,15 @@ class ClientSeeder extends Seeder
     public function run(): void
     {
         $clients = [
-            ['lastname' => 'Diallo', 'firstname' => 'Amadou', 'tel' => '77 123 45 67'],
-            ['lastname' => 'Sarr', 'firstname' => 'Mariam', 'tel' => '76 123 45 67'],
-            ['lastname' => 'Gueye', 'firstname' => 'Babacar', 'tel' => '70 123 45 67'],
-            ['lastname' => 'Ndiaye', 'firstname' => 'Khady', 'tel' => '77 123 45 78'],
-            ['lastname' => 'Diop', 'firstname' => 'Cheikh', 'tel' => '77 345 67 89'],
-            ['lastname' => 'Fall', 'firstname' => 'Aissatou', 'tel' => '77 518 76 67'],
-            ['lastname' => 'Diop', 'firstname' => 'Awa', 'tel' => '77 518 67 76'],
-            ['lastname' => 'Sow', 'firstname' => 'Mamadou', 'tel' => '76 518 76 67'],
-            ['lastname' => 'Ndiaye', 'firstname' => 'Fatou', 'tel' => '77 234 56 78'],
+            ['lastname' => 'Diallo', 'firstname' => 'Amadou', 'tel' => '771234567'],
+            ['lastname' => 'Sarr', 'firstname' => 'Mariam', 'tel' => '761234567'],
+            ['lastname' => 'Gueye', 'firstname' => 'Babacar', 'tel' => '701234567'],
+            ['lastname' => 'Ndiaye', 'firstname' => 'Khady', 'tel' => '771234578'],
+            ['lastname' => 'Diop', 'firstname' => 'Cheikh', 'tel' => '773456789'],
+            ['lastname' => 'Fall', 'firstname' => 'Aissatou', 'tel' => '775187667'],
+            ['lastname' => 'Diop', 'firstname' => 'Awa', 'tel' => '775186776'],
+            ['lastname' => 'Sow', 'firstname' => 'Mamadou', 'tel' => '765187667'],
+            ['lastname' => 'Ndiaye', 'firstname' => 'Fatou', 'tel' => '772345678'],
         ];
 
         Client::insert($clients);

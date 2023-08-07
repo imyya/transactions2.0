@@ -8,8 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class Compte extends Model
 {
     use HasFactory;
+    protected $guarded=['id'];
+    public $timestamps=false;
 
     public function client(){
         return $this->belongsTo(Client::class);
     } 
+
+    
 }

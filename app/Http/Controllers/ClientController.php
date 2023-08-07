@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ClientResource;
 use App\Models\Client;
 use Illuminate\Http\Request;
+use App\Http\Resources\ClientResource;
+use Illuminate\Support\Facades\Validator;
+use Egulias\EmailValidator\Result\ValidEmail;
+use Illuminate\Validation\ValidationException;
 
 class ClientController extends Controller
 {
@@ -25,7 +28,7 @@ class ClientController extends Controller
 
     public function clientsAccounts(){
         $clients = Client::with(['comptes' => function($q) {
-            $q->select('id','client_id', 'acc_number');
+            $q->select('id','client_id', 'acc_number','activated','blocked');
         }])
         ->select('id','firstname', 'lastname','tel')
         ->get();
@@ -39,12 +42,36 @@ class ClientController extends Controller
                     'prenom' => $client->firstname,
                     'nom' => $client->lastname,
                     'tel'=>$client->tel,
-                    'numero_compte' => $compte->acc_number
+                    'numero_compte' => $compte->acc_number,
+                    'activated'=>$compte->activated,
+                    'blocked'=>$compte->blocked
                 ];
             }
         }
         return response()->json($result);
     }
 
-    
+    public function store(Request $request){
+      $validated = Validator::make($request->all(),[
+        'tel' => ['unique:clients','required','regex:/^(77|70|76)\d{7}$/'],
+        'firstname' => 'required',
+        'lastname' => 'required',
+    ], ['tel.unique'=>'Ce numero de telephone existe deja',
+        'tel.regex' => 'Le numéro de téléphone doit commencer par "77", "70", "78" ou "76" suivi oar 6 chiffres ',
+       // 'tel.digits_between' => 'Le numéro de téléphone doit contenir 9 chiffres.',
+    ]);
+
+    if ($validated->fails()) {
+        throw new ValidationException($validated);
+    }
+
+
+    $client = Client::create(['lastname'=>$request->lastname, 'firstname'=>$request->firstname, 'tel'=>$request->tel]);
+    return response()->json($client);
+      
+    }
+
+   
+
+
 }

@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Compte;
 use App\Models\Transaction;
 use Carbon\Exceptions\EndLessPeriodException;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use LengthException;
@@ -87,8 +88,23 @@ class TransactionController extends Controller
 
 
    public function transactionsByAccount($id){
-    $transacs = Transaction::where('account_id',$id)->get();
-    return response()->json($transacs);
+    $transacs = Transaction::where('sender_account_id', $id)
+                           ->orWhere('recipient_account_id', $id)
+                           ->get(['id', 'type', 'amount', 'sender_account_id', 'recipient_account_id', 'date','cancelled',]);
+    return $transacs;
+    $formattedTransactions = $transacs->map(function ($transaction) {
+        return [
+            'id' => $transaction->id,
+            'type' => $transaction->type,
+            'amount' => $transaction->amount,
+            'date' => $transaction->date,
+            'sender' => $transaction->sender_account_id,
+            'recipient' => $transaction->recipient_account_id,
+            'cancelled'=>$transaction->cancelled
+        ];
+    });
+
+    return response()->json($formattedTransactions);
    }
 
    public function storee(Request $request){
@@ -118,32 +134,152 @@ public function depot(Request $request){
     elseif($request->sender_account_id==0 && $request->sender_id !=0){
         $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
         'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);
-        return response()->json($transaction);
+        $recipientAccount = Compte::find($request->recipient_account_id);
+
+        if (!$recipientAccount) {
+            return response()->json(['error' => 'Recipient account not found'], 404);
+        }
+        $currentBalance = (float) $recipientAccount->balance;
+
+        $depositAmount = (float) $request->amount;
+        $newBalance = $currentBalance + $depositAmount;
+    
+        $recipientAccount->update(['balance' => (string) $newBalance]);
+        return response()->json($recipientAccount);
     }
 
     $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
     'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);
+    $recipientAccount = Compte::find($request->recipient_account_id);
+
+    if (!$recipientAccount) {
+        return response()->json(['error' => 'Recipient account not found'], 404);
+    }
+
+    $currentBalance = (float) $recipientAccount->balance;
+    $depositAmount = (float) $request->amount;
+    $newBalance = $currentBalance + $depositAmount;
+
+    // Convert the new balance back to a string and store it in the database
+    $recipientAccount->update(['balance' => (string) $newBalance]);
+
+    return response()->json($recipientAccount);
+}
+
+public function transfert(Request $request)
+{
+    $transactionData = [
+        'type' => 1,
+        'date' => Carbon::now()->format('Y-m-d'),
+        'amount' => $request->amount,
+        'sender_account_id' => $request->sender_account_id,
+        'recipient_account_id' => $request->recipient_account_id,
+        'sender_id' => null,
+        'recipient_id' => null,
+        'code' => null,
+        'immediate' => $request->immediate
+    ];
+
+    if ($request->recipient_id != 0 && $request->code != '') {
+        // Si c'est une transaction OM avec code
+        $transactionData['recipient_account_id'] = null;
+        $transactionData['recipient_id'] = $request->recipient_id;
+        $transactionData['code'] = $request->code;
+    }
+
+    $transaction = Transaction::create($transactionData);
+
+    $senderAccount = Compte::find($request->sender_account_id);
+    $recipientAccount = Compte::find($request->recipient_account_id);
+
+    if (!$senderAccount || !$recipientAccount) {
+        return response()->json(['error' => 'Sender or recipient account not found'], 404);
+    }
+
+    $currentSenderBalance = (float) $senderAccount->balance;
+    $currentRecipientBalance = (float) $recipientAccount->balance;
+    $transferAmount = (float) $request->amount;
+
+    // Mise à jour du solde du compte expéditeur (sender)
+    $newSenderBalance = $currentSenderBalance - $transferAmount;
+    $senderAccount->update(['balance' => (string) $newSenderBalance]);
+
+    // Mise à jour du solde du compte destinataire (recipient)
+    $newRecipientBalance = $currentRecipientBalance + $transferAmount;
+    $recipientAccount->update(['balance' => (string) $newRecipientBalance]);
+
     return response()->json($transaction);
 }
 
-public function transfert(Request $request){
-    if($request->recipient_id!=0 && $request->code!=''){
-        $transaction=Transaction::create(['type'=>1,"date"=>Carbon::now()->format('Y-m-d'),
-        'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>null,'sender_id'=>$request->null,'recipient_id'=>$request->recipient_id,'code'=>$request->code,'immediate'=>$request->immediate]);//transfert OM avc code
-        return response()->json($transaction);
-
-    }
-    else{
-        $transaction=Transaction::create(['type'=>1,"date"=>Carbon::now()->format('Y-m-d'),
-        'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);//transfert OM avc code
-        return response()->json($transaction);
-    }
-}
 
 public function retrait(Request $request){
     $transaction=Transaction::create(['type'=>2,"date"=>Carbon::now()->format('Y-m-d'),
-    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>$request->recipient_id,'code'=>$request->code,'immediate'=>$request->immediate]);
+    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>false]);
+    $recipientAccount = Compte::find($request->sender_account_id);
+
+    if (!$recipientAccount) {
+        return response()->json(['error' => 'Recipient account not found'], 404);
+    }
+    $currentBalance = (float) $recipientAccount->balance;
+
+    $depositAmount = (float) $request->amount;
+    $newBalance = $currentBalance - $depositAmount;
+
+    $recipientAccount->update(['balance' => (string) $newBalance]);
     return response()->json($transaction);
 }
+
+public function cancel($id){
+    Transaction::findOrfail($id);
+    $cancelled=Transaction::where('id',$id)->update(['cancelled'=>true]);
+    return response()->json(["cancelled"=>$cancelled]);
+}
+
+public function cancelLast($id){
+    $last = Transaction::where('sender_account_id', $id)
+    ->whereIn('type', [0, 1])
+    ->where('date', '>=', Carbon::now()->subDay())
+    ->latest('id')
+    ->first();
+    if($last->cancelled){
+        return response()->json(["Error"=>'Transaction already cancelled']);
+    }
+   $last->update(['cancelled'=>true]);
+    return response()->json($last);
+
+}
+public function filter(Request $request) {
+    // Extract the filter parameters from the request
+    $id = $request->input('id');
+    // $type = $request->input('type');
+    $amount = $request->input('amount');
+    $date = $request->input('date');
+
+    // Build the base query to filter transactions for the specific client ID
+    $query = Transaction::where(function ($query) use ($id) {
+        $query->where('sender_account_id', $id);
+            // ->orWhere('recipient_account_id', $id);
+    });
+
+    // Add additional filters based on the provided parameters
+    // if (!is_null($type)) {
+    //     $query->where('type', $type);
+    // }
+
+    if (!is_null($amount)) {
+        $query->where('amount', $amount);
+    }
+
+    if (!is_null($date)) {
+        $query->where('date', $date);
+    }
+
+    // Execute the query and get the filtered transactions
+    $transactions = $query->get();
+
+    // Return the filtered transactions as a JSON response
+    return response()->json($transactions);
+}
+
 
 }

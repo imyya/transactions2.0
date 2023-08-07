@@ -17,6 +17,8 @@ return new class extends Migration
             $table->string("balance",255);
             $table->enum("provider",["OM","WV","CB"]);
             $table->string("acc_number");
+            $table->boolean("activated")->default(true);
+            $table->boolean("blocked")->default(false);
 
             
         });

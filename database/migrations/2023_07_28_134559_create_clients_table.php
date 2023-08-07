@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('lastname');
             $table->string('firstname');
-            $table->string('tel');
+            $table->string('tel')->unique();
 
             
         });
