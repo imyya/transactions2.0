@@ -37,8 +37,7 @@ Route::get('/transactions/comptes/{id}',[TransactionController::class,'transacti
 Route::put('/transactions/cancel/{id}',[TransactionController::class,'cancelLast']);
 Route::put('/comptes/block',[CompteController::class,'toggleBlock']);
 Route::put('/comptes/deactivate',[CompteController::class,'deactivate']);
-
-
+Route::put('/transactions/state',[TransactionController::class,'updateState']);
 
 
 

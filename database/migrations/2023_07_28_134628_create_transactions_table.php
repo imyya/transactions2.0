@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string("code",45)->nullable();
             $table->boolean("immediate")->default(false);
             $table->boolean("cancelled")->default(false);
+            $table->boolean("state")->nullable();
 
 
 

@@ -113,27 +113,21 @@ class TransactionController extends Controller
         return response()->json($transaction);
    }
 
-//    public function store($request){
-//     switch($request->type){
-//         case 0:
-//             if($request->provider && !($request->recipient_id){//donc pas wari
-                
-//             }
-//     }
 
 public function depot(Request $request){
     
 
 
-    if($request->sender_account_id==0 && $request->recipient_account_id==0 && $request->sender_id==0 && $request->recipient_id==0 && $request->code!=''){//wari
+    if($request->sender_account_id==0 && $request->recipient_account_id==0 && $request->sender_id==0 && $request->recipient_id==0 ){//wari
+        $code=$this->generateCode(15);
         $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
-        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>$request->code,'immediate'=>$request->immediate]);
-        return response()->json($transaction);
+        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>$code,'immediate'=>$request->immediate,'state'=>false]);
+        return response()->json(['code'=>$code]);
     }
 
-    elseif($request->sender_account_id==0 && $request->sender_id !=0){
+    else if($request->sender_account_id==0 && $request->sender_id !=0){
         $transaction=Transaction::create(['type'=>0,"date"=>Carbon::now()->format('Y-m-d'),
-        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate]);
+        'amount'=>$request->amount,'sender_account_id'=>null,'recipient_account_id'=>$request->recipient_account_id,'sender_id'=>$request->sender_id,'recipient_id'=>null,'code'=>null,'immediate'=>$request->immediate,'state'=>null]);
         $recipientAccount = Compte::find($request->recipient_account_id);
 
         if (!$recipientAccount) {
@@ -163,11 +157,11 @@ public function depot(Request $request){
     // Convert the new balance back to a string and store it in the database
     $recipientAccount->update(['balance' => (string) $newBalance]);
 
-    return response()->json($recipientAccount);
+    return response()->json($transaction);
 }
 
 public function transfert(Request $request)
-{
+{   $code = $this->generateCode(25);
     $transactionData = [
         'type' => 1,
         'date' => Carbon::now()->format('Y-m-d'),
@@ -177,19 +171,39 @@ public function transfert(Request $request)
         'sender_id' => null,
         'recipient_id' => null,
         'code' => null,
-        'immediate' => $request->immediate
+        'immediate' => $request->immediate,
+        'state' => null
     ];
 
-    if ($request->recipient_id != 0 && $request->code != '') {
+    if ($request->recipient_id != 0 ) {
         // Si c'est une transaction OM avec code
         $transactionData['recipient_account_id'] = null;
         $transactionData['recipient_id'] = $request->recipient_id;
-        $transactionData['code'] = $request->code;
+        $transactionData['code'] = $code;
+        $transactionData['state'] = false;
+
+        $senderAccount = Compte::find($request->sender_account_id);
+        
+        if (!$senderAccount) {
+            return response()->json(['error' => 'Sender or recipient account not found'], 404);
+        }
+        $currentSenderBalance = (float) $senderAccount->balance;
+        $transferAmount = (float) $request->amount;
+        
+        // Mise à jour du solde du compte expéditeur (sender)
+        if($currentSenderBalance < $transferAmount){
+            return response()->json(['error' => 'Solde insuffisant']);
+            
+        }
+        $newSenderBalance = $currentSenderBalance - $transferAmount;
+        $senderAccount->update(['balance' => (string) $newSenderBalance]);
+        $transaction = Transaction::create($transactionData);
+        return response()->json(['code'=>$code]);
+
     }
 
-    $transaction = Transaction::create($transactionData);
-
     $senderAccount = Compte::find($request->sender_account_id);
+
     $recipientAccount = Compte::find($request->recipient_account_id);
 
     if (!$senderAccount || !$recipientAccount) {
@@ -200,21 +214,27 @@ public function transfert(Request $request)
     $currentRecipientBalance = (float) $recipientAccount->balance;
     $transferAmount = (float) $request->amount;
 
-    // Mise à jour du solde du compte expéditeur (sender)
+    // Mise a jour du solde du compte expéditeur (sender)
+    if($currentSenderBalance < $transferAmount){
+        return response()->json(['error' => 'Solde insuffisant']);
+    }
     $newSenderBalance = $currentSenderBalance - $transferAmount;
+
     $senderAccount->update(['balance' => (string) $newSenderBalance]);
 
-    // Mise à jour du solde du compte destinataire (recipient)
+    // Mise a jour du solde du compte destinataire (recipient)
     $newRecipientBalance = $currentRecipientBalance + $transferAmount;
     $recipientAccount->update(['balance' => (string) $newRecipientBalance]);
+    $transaction = Transaction::create($transactionData);
 
-    return response()->json($transaction);
+
+    return response()->json(['nouvelle_transaction'=>$transaction]);
 }
 
 
 public function retrait(Request $request){
     $transaction=Transaction::create(['type'=>2,"date"=>Carbon::now()->format('Y-m-d'),
-    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>false]);
+    'amount'=>$request->amount,'sender_account_id'=>$request->sender_account_id,'recipient_account_id'=>null,'sender_id'=>null,'recipient_id'=>null,'code'=>null,'immediate'=>false,'state'=>null]);
     $recipientAccount = Compte::find($request->sender_account_id);
 
     if (!$recipientAccount) {
@@ -223,17 +243,24 @@ public function retrait(Request $request){
     $currentBalance = (float) $recipientAccount->balance;
 
     $depositAmount = (float) $request->amount;
+    if($currentBalance < $depositAmount){
+        return response()->json(['error' => 'Solde insuffisant']);
+    }
     $newBalance = $currentBalance - $depositAmount;
 
     $recipientAccount->update(['balance' => (string) $newBalance]);
-    return response()->json($transaction);
+    return response()->json(['ok'=>true]);
 }
+
+
 
 public function cancel($id){
     Transaction::findOrfail($id);
     $cancelled=Transaction::where('id',$id)->update(['cancelled'=>true]);
     return response()->json(["cancelled"=>$cancelled]);
 }
+
+
 
 public function cancelLast($id){
     $last = Transaction::where('sender_account_id', $id)
@@ -242,20 +269,22 @@ public function cancelLast($id){
     ->latest('id')
     ->first();
     if($last->cancelled){
-        return response()->json(["Error"=>'Transaction already cancelled']);
+        return response()->json(["error"=>'Transaction already cancelled']);
     }
    $last->update(['cancelled'=>true]);
     return response()->json($last);
 
 }
+
+
+
+
+
 public function filter(Request $request) {
-    // Extract the filter parameters from the request
     $id = $request->input('id');
-    // $type = $request->input('type');
     $amount = $request->input('amount');
     $date = $request->input('date');
 
-    // Build the base query to filter transactions for the specific client ID
     $query = Transaction::where(function ($query) use ($id) {
         $query->where('sender_account_id', $id);
             // ->orWhere('recipient_account_id', $id);
@@ -274,12 +303,102 @@ public function filter(Request $request) {
         $query->where('date', $date);
     }
 
-    // Execute the query and get the filtered transactions
     $transactions = $query->get();
 
-    // Return the filtered transactions as a JSON response
     return response()->json($transactions);
 }
+
+
+function generateCode($length = 8) {
+    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $code = '';
+
+    for ($i = 0; $i < $length; $i++) {
+        $code .= $characters[rand(0, strlen($characters) - 1)];
+    }
+
+    return $code;
+}
+
+public function state(Request $request){
+    if(! $request->code){
+        return response()->json(['error'=>'Veuillez saisir un code valide']);
+
+    }
+    $operation = Transaction::where('code',$request->code)->first();
+    //return $operation;
+    if(!$operation){
+        return response()->json(['error'=>'Aucun depot existant']);
+
+    }
+    else if($operation->state==true){
+        return response()->json(['error'=>'Somme deja retiree']);
+    }
+
+    $operation->update(['state'=>true]);
+    return response()->json(['ok'=>true]);
+}
+
+public function updateState(Request $request) {
+    $code = $request->code;
+    $provider = $request->provider;
+    $tel = $request->tel;
+
+    // Retrieve client ID based on the provided phone number
+    $client = Client::where('tel', $tel)->first();
+
+    if (!$client) {
+        return response()->json(['error' => 'Client not found']);
+    }
+
+    // Verify the input based on the provider and transaction type
+    if ($provider === 'OM') {
+        $matchingTransaction = Transaction::where([
+            'type'=>1,
+            'recipient_account_id' => null,
+            'sender_id' => null,
+            'recipient_id' => $client->id,
+            'code' => $code
+
+        ])->first();
+
+        if (!$matchingTransaction) {
+            return response()->json(['error' => "Aucun transfert avec code trouve"]);
+        } else {
+            if($matchingTransaction->state==true){
+                return response()->json(['error' => "Somme deja retiree"]);
+
+            }
+            $matchingTransaction->update(['state'=>true]);
+            return response()->json(['ok' => 'True']);
+        }
+    } elseif ($provider === 'WR') {
+        $matchingDeposit = Transaction::where([
+            'type' => 0,
+            'sender_account_id' => null,
+            'recipient_account_id' => null,
+            'sender_id' => null,
+            'recipient_id' => null,
+            'code' => $code
+
+        ])->first();
+
+        if (!$matchingDeposit) {
+            return response()->json(['error' => "Aucun depot Wari trouve"]);
+        } else {
+            if($matchingDeposit->state==true){
+                return response()->json(['error' => "Somme deja retiree"]);
+
+            }
+            $matchingDeposit->update(['state'=>true]);
+            return response()->json(['ok' => true]);
+        }
+    } else {
+        return response()->json(['error' => 'Invalid provider or tel']);
+    }
+}
+
+
 
 
 }
